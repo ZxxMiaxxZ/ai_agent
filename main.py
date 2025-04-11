@@ -27,7 +27,7 @@ config_list = [
     {
         "api_type": "openai",
         "base_url": None,
-        "api_key": "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",
+        "api_key": "<KEY-HERE>",
         "model": "gpt-4o-mini"
     }
 ]
@@ -38,9 +38,7 @@ llm_config = {
     "temperature": 0.3,
 }
 
-# Thực thi khi chạy trực tiếp file này
 if __name__ == "__main__":
-    # Đảm bảo thư mục tồn tại
     ensure_directories()
     
     print("=== PENTESTING WORKFLOW ===")
@@ -53,7 +51,6 @@ if __name__ == "__main__":
     choice = input("Select a phase to execute (1-4): ")
     
     if choice == "1":
-        # Tạo và khởi chạy nhóm Recon
         recon = create_recon_team(llm_config, interaction_mode="ALWAYS")
         recon["user_proxy"].initiate_chat(
             recon["manager"], 
