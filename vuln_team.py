@@ -5,23 +5,6 @@ from autogen.coding.local_commandline_code_executor import LocalCommandLineCodeE
 from reading_function import read_file
 from report_save import save_report
 
-
-def extract_endpoints_from_gobuster(file_path="pentest_results/recon/gobuster_scan.txt", base_url="http://localhost:42000"):
-    if not os.path.exists(file_path):
-        return []
-
-    endpoints = []
-    with open(file_path, "r", encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if line.startswith("/") and "Status:" in line:
-                path = line.split()[0]
-                name = path.strip("/").replace("/", "-") or "root"
-                full_url = f"{base_url}{path}"
-                endpoints.append((name, full_url))
-    return endpoints
-
-
 def create_vuln_team(llm_config, interaction_mode="ALWAYS"):
     os.makedirs("pentest_results/vulnscan", exist_ok=True)
 
