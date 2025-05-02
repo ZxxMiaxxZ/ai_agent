@@ -14,31 +14,9 @@ def get_ip_from_url(url):
     except Exception as e:
         return f"Error resolving IP: {str(e)}"
 
-def normalize_hakrawler_urls(file_path="pentest_results/recon/hakrawler_scan.txt") -> list:
-    if not os.path.exists(file_path):
-        return []
 
-    with open(file_path, "r", encoding="utf-8") as f:
-        lines = f.readlines()
 
-    normalized = set()
-    for line in lines:
-        line = line.strip()
-        if not line.startswith("http"):
-            continue
-        parsed = urlparse(line)
-        path = parsed.path
-        query = parse_qs(parsed.query)
-        if query:
-            parts = [f"{k}=*" for k in sorted(query.keys())]
-            pattern = f"{path}?" + "&".join(parts)
-        else:
-            pattern = path
-        normalized.add(pattern)
-
-    return sorted(normalized)
-
-def create_recon_team(llm_config, interaction_mode="ALWAYS"):
+def create_recon_team(llm_config, interaction_mode="NEVER"):
     os.makedirs("pentest_results/recon", exist_ok=True)
 
     nmap_agent = ConversableAgent(
@@ -47,7 +25,7 @@ def create_recon_team(llm_config, interaction_mode="ALWAYS"):
             You're a cybersecurity professional specialized in reconnaissance using Nmap.
             You are responsible for discovering open ports and running services using `nmap`. Use flags appropriate for a full scan.
             You must redirect output to a file located at: `pentest_results/recon/nmap_scan.txt`.
-
+            After that must call Code-Checker
             When generating a command:
             - Use only nmap
             - Always redirect output
@@ -68,6 +46,7 @@ def create_recon_team(llm_config, interaction_mode="ALWAYS"):
             Use the `whatweb` tool and always redirect using (tee) the output to `pentest_results/recon/whatweb_scan.txt`.
 
             Never use other tools. Do not suggest full scan command in advance, always generate command from scratch.
+            After that must call Code-Checker
             Format your result like this:
             ```bash
             <your_command>
@@ -83,10 +62,11 @@ def create_recon_team(llm_config, interaction_mode="ALWAYS"):
             You're responsible for discovering web directories using Gobuster.
             Use Gobuster with a wordlist to brute-force directories on a given target.
             Redirect your result to: `pentest_results/recon/gobuster_scan.txt`
-
+            After that must call Code-Checker
+            Using cookie (if have) to bypass authetication of the web
             Guidelines:
             - Only use Gobuster
-            - The wordlist is **not fixed** — you may use `/usr/share/wordlists/dirb/common.txt`, `/usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt`, or any appropriate wordlist based on the target.
+            - The wordlist is **not fixed** — you may use `/home/kali/Desktop/AI_4/url_dvwa.txt`, `/usr/share/wordlists/dirb/common.txt`, `/usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt`, or any appropriate wordlist based on the target.
             - Always redirect to file
             - Respond with one properly formatted command:
             ```bash
@@ -128,8 +108,9 @@ def create_recon_team(llm_config, interaction_mode="ALWAYS"):
 
             Your job:
             - If the user gives you natural language like "just scan 80", you must understand and rewrite the command properly.
-            - If they send full command, validate syntax, flags, and output redirection.
-
+            - If they send full command, validate syntax, flags, and output redirection .
+            - Do not give the user like this 'Make sure that the directory exists before running this command to avoid any errors' (That is your job)
+            - Finally give it for Code-Executor
             Always reply with this exact format:
             ```bash
             <correct bash command>
@@ -153,40 +134,41 @@ def create_recon_team(llm_config, interaction_mode="ALWAYS"):
         llm_config=llm_config,
         human_input_mode=interaction_mode,
     )
-    #file_reader.register_for_llm(name="read_file", description="Read a scan result file")(read_file)
+    file_reader.register_for_llm(name="read_file", description="Read a scan result file")(read_file)
+    file_reader.register_for_execution(name="read_file", description="Read a scan result file")(read_file)
 
     user_proxy = UserProxyAgent(
         name="User-Proxy",
         system_message="A human security analyst overseeing the pentest operation. You must confirm commands after validation by Code-Checker before they are executed.",
+        is_termination_msg=lambda msg: "TERMINATE" in msg["content"],
         code_execution_config={"work_dir": ".", "use_docker": False},
         human_input_mode=interaction_mode,
         llm_config=llm_config
     )
     user_proxy.register_for_execution(name="save_report")(save_report)
-    #user_proxy.register_for_execution(name="read_file")(read_file)
+    user_proxy.register_for_execution(name="read_file")(read_file)
 
 
-# 4. **Hakrawler** (endpoints with query parameters, if any)
     report_writer = AssistantAgent(
         name="Report-Writer",
         system_message="""
             You're a professional security report writer.
-
+            Remember to be specific. Always put the IP address or URL you scan on the first line.
             Your task is to generate a **summary report** from the reconnaissance phase of a pentest. This summary must include findings from:
             1. **Nmap** (open ports, services, OS info)
             2. **WhatWeb** (web technologies used)
             3. **Gobuster** (directories/files discovered)
            
-
-            🛑 Do not write any command or suggest any tool.
-            ✅ Use bullet point format for clarity.
-            ✅ Group findings by tool name.
-            ✅ At the end of your report, suggest **general next steps** (e.g., "Proceed to vulnerability scanning").
+            *Remember*
+            Do not write any command or suggest any tool.
+            Use bullet point format for clarity.
+            Group findings by tool name.
+            At the end of your report, suggest **general next steps** (e.g., "Proceed to vulnerability scanning").
 
             After writing the report, you MUST call the `save_report` tool to save the file. Do not skip this step.
         """,
         llm_config=llm_config,
-        human_input_mode="ALWAYS",
+        human_input_mode=interaction_mode
     )
     report_writer.register_for_llm(name="save_report", description="Save the final recon report")(save_report)
     report_writer.register_for_execution(name="save_report")(save_report)
@@ -194,32 +176,17 @@ def create_recon_team(llm_config, interaction_mode="ALWAYS"):
 
     recon_summarizer = ConversableAgent(
         name="Recon-Summarizer",
-        system_message="Analyze recon results, highlight key findings.",
+        system_message="Analyze recon results, highlight key findings. ",
         llm_config=llm_config,
         human_input_mode=interaction_mode,
     )
 
-# crawler_agent,file_reader,
 
     recon_team = GroupChat(
-        agents=[user_proxy, nmap_agent, whatweb_agent, directory_scanner,
-                checker, code_executor, report_writer,  recon_summarizer],
+        agents=[user_proxy, file_reader, nmap_agent,checker, code_executor, whatweb_agent, directory_scanner, report_writer],
         messages=[],
         max_round=50
     )
-    #
-#         The summary MUST use `normalize_hakrawler_urls()` to include Hakrawler endpoints at the end.
-        # ⛔ After each execution:
-        # 5.5 You MUST immediately call the File-Reader to read the output file (e.g., `nmap_scan.txt`, `whatweb_scan.txt`, etc).
-        # 🟢 When calling File-Reader, clearly specify the filename. File-Reader will show raw results.
-
-
-
-        # ⛔ Do NOT move to the next tool until the result from File-Reader has been shown and understood.
-        # You are the one who must make sure that agents do NOT get confused about whether a tool has been executed or not.
-
-# and File-Reader has read each output,
-# 🛑 NEVER skip the File-Reader step even if the command executed with exitcode 0 and no error.
     recon_manager = GroupChatManager(
         name="Recon-Manager",
         groupchat=recon_team,
@@ -229,36 +196,22 @@ def create_recon_team(llm_config, interaction_mode="ALWAYS"):
         Your role is to coordinate a precise and complete recon phase.
 
         You MUST follow this strict sequence of actions for each tool:
-
-        1. Ask the user (User-Proxy) to provide the target (IP or URL).
-        2. Nmap-Agent generates a command for Nmap.
-        3. Pass the command to Code-Checker for syntax validation.
-        4. Ask User-Proxy to approve the validated command.
-        5. If approved, forward the command to Code-Executor to run.
-        6. Repeat the same process (steps 2–5) for each of these agents:
-            - WhatWeb-Agent
-            - Directory-Scanner
-            - Endpoint-Crawler
-
-
-        7. After all 4 tools have been executed call the Report-Writer agent.
-
-        8. The Report-Writer must generate a recon summary.
-  
-
-        9. Once the report is written, you MUST call `save_report` to save it in the recon folder.
-
-        ✅ You are responsible for making sure that **no tool is skipped**, **every output file is processed**, and **results are visible**.
-
-       
-    """
-)
+        0. Reading header.txt to get cookie.
+        1. Ask for target IP/URL.
+        2. Nmap-Agent generate command ➔ Code-Checker ➔ User-Proxy approve ➔ Code-Executor run.
+        3. WhatWeb-Agent same flow.
+        4. Directory-Scanner same flow.
+        5. Endpoint-Crawler same flow.
+        6. After all tools done, call Report-Writer to summarize recon results.
+        7. After Report-Writer finishes:
+        - Send message "TERMINATE" to User-Proxy to end recon phase.
+        ✅ No tool should be skipped.
+        """
+)   
 
 
 
 
-#            "file_reader": file_reader
-#            "crawler": crawler_agent,
     return {
         "manager": recon_manager,
         "team": recon_team,
