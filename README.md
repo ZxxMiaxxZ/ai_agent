@@ -22,22 +22,21 @@ This project automates web application penetration testing using AI agents orche
 git clone https://github.com/ZxxMiaxxZ/ai_agent
 
 ### 2. Install Python dependencies
-pip install -r requirements.txt
-playwright install
+- pip install -r requirements.txt
+- playwright install
 ### 3. Install external CLI tools (required)
-sudo apt update
-sudo apt install nmap gobuster whatweb sqlmap
-sudo snap install nuclei
+- sudo apt update
+- sudo apt install nmap gobuster whatweb sqlmap
+- sudo snap install nuclei
 
 ### 4. Test with dvwa
-docker pull vulnerables/web-dvwa
-docker run -d -p 8085:80 --name dvwa vulnerables/web-dvwa
+- docker pull vulnerables/web-dvwa
+- docker run -d -p 8085:80 --name dvwa vulnerables/web-dvwa
 
 ### 5. Pentest process with security low (in setting dvwa)
-Access the web and take the cookie 
-Cookie: PHPSESSID=<your_session>; security=low
-
-Save it in header.txt
+- Access the web and take the cookie 
+- Cookie: PHPSESSID=<your_session>; security=low
+- Save it in header.txt
 
 
 
