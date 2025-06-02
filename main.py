@@ -12,6 +12,8 @@ from log_summary import extract_sqlmap_summary
 config_list = [
     {
         "api_type": "openai",
+        "base_url": "https://api.openai.com/v1",
+        "api_key": "key heere ",
         "model": "gpt-4.1",
         "price": [0.01, 0.03]
     }
