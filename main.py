@@ -157,8 +157,8 @@ def pentest_team(llm_config, interaction_mode):
         system_message="A human security analyst overseeing the pentest operation. Your mission is send `TERMINATE`",
         is_termination_msg=lambda msg: "TERMINATE" in msg["content"],
         code_execution_config={"work_dir": ".", "use_docker": False},
-        # human_input_mode="ALWAYS",
-        human_input_mode="NEVER",
+        human_input_mode="ALWAYS",
+        # human_input_mode="NEVER",
         llm_config=llm_config
     )
     user_proxy.register_for_execution(name="read_file")(read_file)
@@ -430,7 +430,7 @@ if __name__ == "__main__":
     # lấy IP từ URL (nếu cần)
     target_ip = get_ip_from_url(target_url)
 
-    pentest = pentest_team(llm_config, interaction_mode="NEVER")
+    pentest = pentest_team(llm_config, interaction_mode="ALWAYS")
     pentest["user_proxy"].initiate_chat(
         pentest["manager"],
         message=f"""Target site: {target_url} ({target_ip}).
